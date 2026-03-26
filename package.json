@@ -1,0 +1,75 @@
+{
+  "name": "lisp-rainbow-brackets",
+  "displayName": "Lisp Rainbow Brackets",
+  "description": "Rainbow bracket highlighting for Scheme, Racket, Common Lisp, and related Lisp dialects.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:scheme",
+    "onLanguage:racket",
+    "onLanguage:commonlisp",
+    "onLanguage:lisp",
+    "onLanguage:clojure",
+    "onLanguage:janet"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Lisp Rainbow Brackets",
+      "properties": {
+        "lispRainbowBrackets.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable rainbow bracket highlighting for Lisp-family buffers."
+        },
+        "lispRainbowBrackets.colors": {
+          "type": "array",
+          "default": [
+            "#ff6b6b",
+            "#f59f00",
+            "#51cf66",
+            "#22b8cf",
+            "#4c6ef5",
+            "#845ef7",
+            "#f06595",
+            "#94d82d"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Bracket colors used cyclically by nesting depth."
+        },
+        "lispRainbowBrackets.languages": {
+          "type": "array",
+          "default": [
+            "scheme",
+            "racket",
+            "commonlisp",
+            "lisp",
+            "clojure",
+            "janet"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Language IDs where rainbow bracket decorations should be applied."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.11.24",
+    "typescript": "^5.4.2"
+  }
+}
