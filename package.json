@@ -20,6 +20,24 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "scheme",
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "racket",
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "commonlisp",
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "lisp",
+        "configuration": "./language-configuration.json"
+      }
+    ],
     "configuration": {
       "title": "Lisp Rainbow Brackets",
       "properties": {

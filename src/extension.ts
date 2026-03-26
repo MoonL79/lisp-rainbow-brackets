@@ -21,8 +21,14 @@ interface BracketToken {
   length: number;
 }
 
+interface ScanResult {
+  bracketTokens: BracketToken[];
+  specialTokens: Array<{ start: number; length: number }>;
+}
+
 class RainbowBracketController implements vscode.Disposable {
   private decorationTypes: vscode.TextEditorDecorationType[] = [];
+  private specialDecorationType: vscode.TextEditorDecorationType | undefined;
   private refreshTimer: NodeJS.Timeout | undefined;
 
   constructor(private readonly context: vscode.ExtensionContext) {
@@ -51,6 +57,7 @@ class RainbowBracketController implements vscode.Disposable {
       clearTimeout(this.refreshTimer);
     }
 
+    this.specialDecorationType?.dispose();
     for (const decorationType of this.decorationTypes) {
       decorationType.dispose();
     }
@@ -65,6 +72,7 @@ class RainbowBracketController implements vscode.Disposable {
   }
 
   private reloadDecorations(): void {
+    this.specialDecorationType?.dispose();
     for (const decorationType of this.decorationTypes) {
       decorationType.dispose();
     }
@@ -76,6 +84,10 @@ class RainbowBracketController implements vscode.Disposable {
         rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
       }),
     );
+    this.specialDecorationType = vscode.window.createTextEditorDecorationType({
+      color: "#888888",
+      rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+    });
   }
 
   private refreshVisibleEditors(): void {
@@ -92,8 +104,11 @@ class RainbowBracketController implements vscode.Disposable {
 
     const text = editor.document.getText();
     const buckets = this.decorationTypes.map(() => [] as vscode.Range[]);
+    const specialRanges: vscode.Range[] = [];
 
-    for (const token of scanBracketTokens(text)) {
+    const scanResult = scanBracketTokens(text);
+
+    for (const token of scanResult.bracketTokens) {
       if (buckets.length === 0) {
         break;
       }
@@ -104,15 +119,23 @@ class RainbowBracketController implements vscode.Disposable {
       buckets[bucketIndex].push(new vscode.Range(start, end));
     }
 
+    for (const token of scanResult.specialTokens) {
+      const start = editor.document.positionAt(token.start);
+      const end = editor.document.positionAt(token.start + token.length);
+      specialRanges.push(new vscode.Range(start, end));
+    }
+
     this.decorationTypes.forEach((decorationType, index) => {
       editor.setDecorations(decorationType, buckets[index]);
     });
+    this.specialDecorationType && editor.setDecorations(this.specialDecorationType, specialRanges);
   }
 
   private clearEditor(editor: vscode.TextEditor): void {
     for (const decorationType of this.decorationTypes) {
       editor.setDecorations(decorationType, []);
     }
+    this.specialDecorationType && editor.setDecorations(this.specialDecorationType, []);
   }
 
   private getColors(): string[] {
@@ -135,8 +158,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {}
 
-function scanBracketTokens(text: string): BracketToken[] {
-  const tokens: BracketToken[] = [];
+function scanBracketTokens(text: string): ScanResult {
+  const bracketTokens: BracketToken[] = [];
+  const specialTokens: Array<{ start: number; length: number }> = [];
   const stack: number[] = [];
 
   let index = 0;
@@ -148,6 +172,14 @@ function scanBracketTokens(text: string): BracketToken[] {
   while (index < text.length) {
     const char = text[index];
     const next = text[index + 1] ?? "";
+    const afterNext = text[index + 2] ?? "";
+
+    if (char === "\\" && next === "#") {
+      const specialLength = afterNext.length > 0 && afterNext !== "\n" ? 3 : 2;
+      specialTokens.push({ start: index, length: specialLength });
+      index += specialLength;
+      continue;
+    }
 
     if (inLineComment) {
       if (char === "\n") {
@@ -222,50 +254,71 @@ function scanBracketTokens(text: string): BracketToken[] {
       continue;
     }
 
-    if (text.startsWith("#vu8(", index)) {
+    const openTokenLength = matchOpenBracketToken(text, index);
+    if (openTokenLength > 0) {
       const depth = stack.length;
       stack.push(depth);
-      tokens.push({ kind: "open", depth, start: index, length: 5 });
-      index += 5;
+      bracketTokens.push({ kind: "open", depth, start: index, length: openTokenLength });
+      index += openTokenLength;
       continue;
     }
 
-    if (text.startsWith("#(", index)) {
-      const depth = stack.length;
-      stack.push(depth);
-      tokens.push({ kind: "open", depth, start: index, length: 2 });
-      index += 2;
-      continue;
-    }
-
-    if (text.startsWith("#)", index)) {
+    const closeTokenLength = matchCloseBracketToken(text, index);
+    if (closeTokenLength > 0) {
       const depth = stack.length > 0 ? stack.pop()! : 0;
-      tokens.push({ kind: "close", depth, start: index, length: 2 });
-      index += 2;
-      continue;
-    }
-
-    if (char === "(") {
-      const depth = stack.length;
-      stack.push(depth);
-      tokens.push({ kind: "open", depth, start: index, length: 1 });
-      index += 1;
-      continue;
-    }
-
-    if (char === ")") {
-      const depth = stack.length > 0 ? stack.pop()! : 0;
-      tokens.push({ kind: "close", depth, start: index, length: 1 });
-      index += 1;
+      bracketTokens.push({ kind: "close", depth, start: index, length: closeTokenLength });
+      index += closeTokenLength;
       continue;
     }
 
     index += 1;
   }
 
-  return tokens;
+  return { bracketTokens, specialTokens };
 }
 
 function isDelimiter(char: string): boolean {
   return char.length === 0 || /\s|[()[\]{}"';]/.test(char);
+}
+
+function isEscapedAt(text: string, index: number): boolean {
+  let backslashCount = 0;
+
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
+    backslashCount += 1;
+  }
+
+  return backslashCount % 2 === 1;
+}
+
+function matchOpenBracketToken(text: string, index: number): number {
+  if (isEscapedAt(text, index)) {
+    return 0;
+  }
+
+  if (text.startsWith("#vu8(", index)) {
+    return 5;
+  }
+
+  if (text.startsWith("#(", index)) {
+    return 2;
+  }
+
+  if (text[index] === "(") {
+    return 1;
+  }
+
+  return 0;
+}
+
+function matchCloseBracketToken(text: string, index: number): number {
+  if (text.startsWith("#)", index)) {
+    return 2;
+  }
+
+  if (text[index] === ")") {
+    return 1;
+  }
+
+  return 0;
 }
