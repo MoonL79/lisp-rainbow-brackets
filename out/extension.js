@@ -124,7 +124,6 @@ function scanBracketTokens(text) {
     let blockCommentDepth = 0;
     let inString = false;
     let inLineComment = false;
-    let inCharLiteral = false;
     while (index < text.length) {
         const char = text[index];
         const next = text[index + 1] ?? "";
@@ -167,14 +166,6 @@ function scanBracketTokens(text) {
             index += 1;
             continue;
         }
-        if (inCharLiteral) {
-            if (isDelimiter(char)) {
-                inCharLiteral = false;
-                continue;
-            }
-            index += 1;
-            continue;
-        }
         if (char === ";") {
             inLineComment = true;
             index += 1;
@@ -191,8 +182,24 @@ function scanBracketTokens(text) {
             continue;
         }
         if (char === "#" && next === "\\") {
-            inCharLiteral = true;
-            index += 2;
+            // Character literal: #\x or #\( or #\) etc.
+            // We need to skip the entire character literal
+            index += 2; // Skip #\
+            // Now we're at the character itself
+            if (index < text.length) {
+                const charAfterBackslash = text[index];
+                // Check if it's a named character (like #\newline, #\space)
+                // Named characters are followed by a delimiter or end of string
+                let charLiteralEnd = index + 1;
+                // If the character after #\ is alphabetic, it might be a named character
+                if (/[a-zA-Z]/.test(charAfterBackslash)) {
+                    // Look ahead to find the end of the named character
+                    while (charLiteralEnd < text.length && !isDelimiter(text[charLiteralEnd])) {
+                        charLiteralEnd++;
+                    }
+                }
+                index = charLiteralEnd;
+            }
             continue;
         }
         const openTokenLength = matchOpenBracketToken(text, index);
@@ -217,15 +224,8 @@ function scanBracketTokens(text) {
 function isDelimiter(char) {
     return char.length === 0 || /\s|[()[\]{}"';]/.test(char);
 }
-function isEscapedAt(text, index) {
-    let backslashCount = 0;
-    for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
-        backslashCount += 1;
-    }
-    return backslashCount % 2 === 1;
-}
 function matchOpenBracketToken(text, index) {
-    if (isEscapedAt(text, index)) {
+    if (text.startsWith("#\\(", index)) {
         return 0;
     }
     if (text.startsWith("#vu8(", index)) {
@@ -240,6 +240,9 @@ function matchOpenBracketToken(text, index) {
     return 0;
 }
 function matchCloseBracketToken(text, index) {
+    if (text.startsWith("#\\)", index)) {
+        return 0;
+    }
     if (text.startsWith("#)", index)) {
         return 2;
     }

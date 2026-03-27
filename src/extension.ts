@@ -167,7 +167,6 @@ function scanBracketTokens(text: string): ScanResult {
   let blockCommentDepth = 0;
   let inString = false;
   let inLineComment = false;
-  let inCharLiteral = false;
 
   while (index < text.length) {
     const char = text[index];
@@ -220,16 +219,6 @@ function scanBracketTokens(text: string): ScanResult {
       continue;
     }
 
-    if (inCharLiteral) {
-      if (isDelimiter(char)) {
-        inCharLiteral = false;
-        continue;
-      }
-
-      index += 1;
-      continue;
-    }
-
     if (char === ";") {
       inLineComment = true;
       index += 1;
@@ -249,8 +238,29 @@ function scanBracketTokens(text: string): ScanResult {
     }
 
     if (char === "#" && next === "\\") {
-      inCharLiteral = true;
-      index += 2;
+      // Character literal: #\x or #\( or #\) etc.
+      // We need to skip the entire character literal
+      index += 2; // Skip #\
+      
+      // Now we're at the character itself
+      if (index < text.length) {
+        const charAfterBackslash = text[index];
+        
+        // Check if it's a named character (like #\newline, #\space)
+        // Named characters are followed by a delimiter or end of string
+        let charLiteralEnd = index + 1;
+        
+        // If the character after #\ is alphabetic, it might be a named character
+        if (/[a-zA-Z]/.test(charAfterBackslash)) {
+          // Look ahead to find the end of the named character
+          while (charLiteralEnd < text.length && !isDelimiter(text[charLiteralEnd])) {
+            charLiteralEnd++;
+          }
+        }
+        
+        index = charLiteralEnd;
+      }
+      
       continue;
     }
 
@@ -281,18 +291,8 @@ function isDelimiter(char: string): boolean {
   return char.length === 0 || /\s|[()[\]{}"';]/.test(char);
 }
 
-function isEscapedAt(text: string, index: number): boolean {
-  let backslashCount = 0;
-
-  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
-    backslashCount += 1;
-  }
-
-  return backslashCount % 2 === 1;
-}
-
 function matchOpenBracketToken(text: string, index: number): number {
-  if (isEscapedAt(text, index)) {
+  if (text.startsWith("#\\(", index)) {
     return 0;
   }
 
@@ -312,6 +312,10 @@ function matchOpenBracketToken(text: string, index: number): number {
 }
 
 function matchCloseBracketToken(text: string, index: number): number {
+  if (text.startsWith("#\\)", index)) {
+    return 0;
+  }
+
   if (text.startsWith("#)", index)) {
     return 2;
   }
