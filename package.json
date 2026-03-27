@@ -2,7 +2,7 @@
   "name": "lisp-rainbow-brackets",
   "displayName": "Lisp Rainbow Brackets",
   "description": "Rainbow bracket highlighting for Scheme, Racket, Common Lisp, and related Lisp dialects.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "local",
   "engines": {
     "vscode": "^1.85.0"
