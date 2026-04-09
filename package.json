@@ -2,7 +2,7 @@
   "name": "lisp-rainbow-brackets",
   "displayName": "Lisp Rainbow Brackets",
   "description": "Rainbow bracket highlighting for Scheme, Racket, Common Lisp, and related Lisp dialects.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "local",
   "engines": {
     "vscode": "^1.85.0"
@@ -18,24 +18,20 @@
     "onLanguage:clojure",
     "onLanguage:janet"
   ],
-  "main": "./out/extension.js",
+  "main": "out/extension.js",
   "contributes": {
     "languages": [
       {
-        "id": "scheme",
-        "configuration": "./language-configuration.json"
+        "id": "scheme"
       },
       {
-        "id": "racket",
-        "configuration": "./language-configuration.json"
+        "id": "racket"
       },
       {
-        "id": "commonlisp",
-        "configuration": "./language-configuration.json"
+        "id": "commonlisp"
       },
       {
-        "id": "lisp",
-        "configuration": "./language-configuration.json"
+        "id": "lisp"
       }
     ],
     "configuration": {
